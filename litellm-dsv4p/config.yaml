@@ -1,0 +1,101 @@
+# ============================================================
+# DSv4P LiteLLM Router — 7 Tier-1 only (lowercase)
+# ============================================================
+#
+# Optimization based on log analysis:
+#   - Mixed-case model names (DeepSeek-v4-Pro, DeEpSeek-V4-Pro)
+#     cause "Unsupported model" errors on ModelScope, same issue as
+#     glm5.1. Only lowercase deepseek-ai/deepseek-v4-pro works.
+#   - REMOVED all mixed-case deployments (42 entries) — same reason
+#     as glm5.1 cleanup
+#   - rpm: 1 → 5 — conservative increase; DSv4P used less frequently
+#   - timeout: 120 → 300 — DSv4P can be slow on large inputs
+#   - cooldown_time: 30 → 20 — faster recovery
+#   - routing_strategy: latency-based-routing → simple-shuffle —
+#     avoids TPS throttle from over-concentration on one deployment
+#   - debug: true → removed — reduces log volume
+#
+# 7 keys × 1 model = 7 deployments
+# ============================================================
+
+model_list:
+  - model_name: dsv4p
+    litellm_params: &dsv4p_t1
+      model: openai/deepseek-ai/deepseek-v4-pro
+      api_base: os.environ/MS_BASEURL
+      api_key: os.environ/MS_KEY1
+      rpm: 5
+      tpm: 500000
+      timeout: 300
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY2
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY3
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY4
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY5
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY6
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY7
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+litellm_settings:
+  drop_params: false
+  json_logs: true
+  store_prompts_in_spend_logs: true
+  request_timeout: 600
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  background_health_checks: false
+
+router_settings:
+  num_retries: 3
+  cooldown_time: 20
+  routing_strategy: simple-shuffle
+  enable_pre_call_checks: true
+  allowed_fails_policy:
+    BadRequestErrorAllowedFails: 0
+    RateLimitErrorAllowedFails: 3
+    TimeoutErrorAllowedFails: 3

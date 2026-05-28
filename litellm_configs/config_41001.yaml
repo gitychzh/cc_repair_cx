@@ -1,0 +1,241 @@
+# ============================================================
+# 42001 Anthropic Router — 3 Model ×7 Tier-1 only (env vars)
+# ============================================================
+#
+# Frontend: Anthropic /v1/messages format (Claude Code)
+# Backend:  OpenAI format (ModelScope API)
+# LiteLLM auto-converts Anthropic ↔ OpenAI
+#
+# Documentation reference:
+#   https://docs.litellm.ai/docs/anthropic_unified
+#   https://docs.litellm.ai/docs/providers/openai_compatible
+#
+# Tier-2 REMOVED: mixed-case model names (ZhipuAI/GLM-5.1)
+# are unsupported by ModelScope for GLM models, causing
+# "Unsupported model" errors on /v1/messages route.
+# Only tier-1 (lowercase) deployments are included.
+#
+# 7 keys × 3 models = 21 deployments
+# rpm=2 per deployment, timeout per model
+# ============================================================
+
+model_list:
+
+  # ─────────── DSv4P Tier-1 (lowercase, 500/key, rpm=2) ───────────
+  - model_name: dsv4p_uni41001
+    litellm_params: &dsv4p_t1
+      model: openai/deepseek-ai/deepseek-v4-pro
+      api_base: os.environ/MS_API_BASE
+      api_key: os.environ/MS_KEY1_YC
+      rpm: 2
+      timeout: 300
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p_uni41001
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY2_QQ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p_uni41001
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY3_YZ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p_uni41001
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY4_XQ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p_uni41001
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY5_ZX
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p_uni41001
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY6_QM
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: dsv4p_uni41001
+    litellm_params:
+      <<: *dsv4p_t1
+      api_key: os.environ/MS_KEY7_JH
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  # ─────────── GLM-5.1 Tier-1 (lowercase, 500/key, rpm=2) ───────────
+  - model_name: glm5.1_uni41001
+    litellm_params: &glm51_t1
+      model: openai/zhipuai/glm-5.1
+      api_base: os.environ/MS_API_BASE
+      api_key: os.environ/MS_KEY1_YC
+      rpm: 2
+      timeout: 180
+      allowed_openai_params: &glm_allowed
+        - max_tokens
+        - max_completion_tokens
+        - reasoning_effort
+        - temperature
+        - top_p
+        - stream
+        - stop
+        - tools
+        - tool_choice
+        - frequency_penalty
+        - presence_penalty
+        - n
+        - user
+        - response_format
+        - seed
+        - logprobs
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5.1_uni41001
+    litellm_params:
+      <<: *glm51_t1
+      api_key: os.environ/MS_KEY2_QQ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5.1_uni41001
+    litellm_params:
+      <<: *glm51_t1
+      api_key: os.environ/MS_KEY3_YZ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5.1_uni41001
+    litellm_params:
+      <<: *glm51_t1
+      api_key: os.environ/MS_KEY4_XQ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5.1_uni41001
+    litellm_params:
+      <<: *glm51_t1
+      api_key: os.environ/MS_KEY5_ZX
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5.1_uni41001
+    litellm_params:
+      <<: *glm51_t1
+      api_key: os.environ/MS_KEY6_QM
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5.1_uni41001
+    litellm_params:
+      <<: *glm51_t1
+      api_key: os.environ/MS_KEY7_JH
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  # ─────────── GLM-5 Tier-1 (lowercase, 500/key, rpm=2) ───────────
+  - model_name: glm5_uni41001
+    litellm_params: &glm5_t1
+      model: openai/zhipuai/glm-5
+      api_base: os.environ/MS_API_BASE
+      api_key: os.environ/MS_KEY1_YC
+      rpm: 2
+      timeout: 120
+      allowed_openai_params: *glm_allowed
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5_uni41001
+    litellm_params:
+      <<: *glm5_t1
+      api_key: os.environ/MS_KEY2_QQ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5_uni41001
+    litellm_params:
+      <<: *glm5_t1
+      api_key: os.environ/MS_KEY3_YZ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5_uni41001
+    litellm_params:
+      <<: *glm5_t1
+      api_key: os.environ/MS_KEY4_XQ
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5_uni41001
+    litellm_params:
+      <<: *glm5_t1
+      api_key: os.environ/MS_KEY5_ZX
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5_uni41001
+    litellm_params:
+      <<: *glm5_t1
+      api_key: os.environ/MS_KEY6_QM
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+  - model_name: glm5_uni41001
+    litellm_params:
+      <<: *glm5_t1
+      api_key: os.environ/MS_KEY7_JH
+    model_info:
+      mode: chat
+      max_tokens: 131072
+
+litellm_settings:
+  drop_params: false
+  json_logs: true
+  store_prompts_in_spend_logs: true
+  request_timeout: 600
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  background_health_checks: false
+
+router_settings:
+  num_retries: 5
+  cooldown_time: 60
+  routing_strategy: simple-shuffle
+  enable_pre_call_checks: true
+  allowed_fails_policy:
+    BadRequestErrorAllowedFails: 0
+    RateLimitErrorAllowedFails: 0
+    TimeoutErrorAllowedFails: 3

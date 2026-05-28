@@ -1,0 +1,224 @@
+services:
+  cc_postgres:
+    image: postgres:16-alpine
+    container_name: cc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: litellm
+      POSTGRES_MULTIPLE_DATABASES: litellm_glm51,litellm_dsv4p
+    volumes:
+    - cc_pgdata:/var/lib/postgresql/data
+    - ./postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    ports:
+    - 5432:5432
+    networks:
+    - cc-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U litellm -d litellm
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  glm5.1_uni41001:
+    image: litellm/litellm:v1.85.1
+    container_name: glm5.1_uni41001
+    restart: unless-stopped
+    environment:
+      LITELLM_MASTER_KEY: sk-litellm-local
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@cc_postgres:5432/litellm_glm51
+      MS_BASEURL: https://api-inference.modelscope.cn/v1
+      MS_KEY1: ms-bb4e5bee-ca0e-49be-8de3-2347a57752f5
+      MS_KEY2: ms-b836c297-9cb3-45f7-86b3-a33e1b76f48f
+      MS_KEY3: ms-202e8dc3-b2f0-4aa3-9b56-0fa6798ac5b9
+      MS_KEY4: ms-ed773f9d-9ca1-4fd9-87e4-b6acd0e545ae
+      MS_KEY5: ms-f7231d97-13d8-4049-97d9-378984f4fb2d
+      MS_KEY6: ms-e392cb51-9637-4766-80aa-490a6044294c
+      MS_KEY7: ms-20761627-ec32-497c-a11a-7ff580617f0b
+    volumes:
+    - ./litellm-glm51/config.yaml:/app/config.yaml:ro
+    - ./logs/litellm-glm51:/app/logs
+    ports:
+    - 41001:4000
+    networks:
+    - cc-net
+    depends_on:
+      cc_postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"
+        || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command:
+    - --config
+    - /app/config.yaml
+    - --port
+    - '4000'
+  dsv4p_uni42001:
+    image: litellm/litellm:v1.85.1
+    container_name: dsv4p_uni42001
+    restart: unless-stopped
+    environment:
+      LITELLM_MASTER_KEY: sk-litellm-local
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@cc_postgres:5432/litellm_dsv4p
+      MS_BASEURL: https://api-inference.modelscope.cn/v1
+      MS_KEY1: ms-bb4e5bee-ca0e-49be-8de3-2347a57752f5
+      MS_KEY2: ms-b836c297-9cb3-45f7-86b3-a33e1b76f48f
+      MS_KEY3: ms-202e8dc3-b2f0-4aa3-9b56-0fa6798ac5b9
+      MS_KEY4: ms-ed773f9d-9ca1-4fd9-87e4-b6acd0e545ae
+      MS_KEY5: ms-f7231d97-13d8-4049-97d9-378984f4fb2d
+      MS_KEY6: ms-e392cb51-9637-4766-80aa-490a6044294c
+      MS_KEY7: ms-20761627-ec32-497c-a11a-7ff580617f0b
+    volumes:
+    - ./litellm-dsv4p/config.yaml:/app/config.yaml:ro
+    - ./logs/litellm-dsv4p:/app/logs
+    ports:
+    - 42001:4000
+    networks:
+    - cc-net
+    depends_on:
+      cc_postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"
+        || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command:
+    - --config
+    - /app/config.yaml
+    - --port
+    - '4000'
+  auth_to_api_40001:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    container_name: auth_to_api_40001
+    restart: unless-stopped
+    environment:
+      LITELLM_URL_GLM51: http://glm5.1_uni41001:4000/v1/chat/completions
+      LITELLM_URL_DSV4P: http://dsv4p_uni42001:4000/v1/chat/completions
+      LITELLM_MODELS_URL_GLM51: http://glm5.1_uni41001:4000/v1/models
+      LITELLM_MODELS_URL_DSV4P: http://dsv4p_uni42001:4000/v1/models
+      LITELLM_KEY: sk-litellm-local
+      LISTEN_PORT: '40001'
+      PROXY_TIMEOUT: '300'
+      MAX_TOOL_DESC: '2000'
+      MAX_SCHEMA_DESC: '600'
+      CHARS_PER_TOKEN_ESTIMATE: '3.5'
+      MODEL_INPUT_TOKEN_SAFETY_GLM51: '190000'
+      MODEL_INPUT_TOKEN_SAFETY_DSV4P: '120000'
+      LOG_DIR: /app/logs
+    volumes:
+    - ./logs/proxy:/app/logs
+    ports:
+    - 40001:40001
+    networks:
+    - cc-net
+    depends_on:
+    - glm5.1_uni41001
+    - dsv4p_uni42001
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:40001/health')"
+        || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+  auth_to_api_40002:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    container_name: auth_to_api_40002
+    restart: unless-stopped
+    environment:
+      LITELLM_URL_GLM51: http://glm5.1_uni41001:4000/v1/chat/completions
+      LITELLM_URL_DSV4P: http://dsv4p_uni42001:4000/v1/chat/completions
+      LITELLM_MODELS_URL_GLM51: http://glm5.1_uni41001:4000/v1/models
+      LITELLM_MODELS_URL_DSV4P: http://dsv4p_uni42001:4000/v1/models
+      LITELLM_KEY: sk-litellm-local
+      LISTEN_PORT: '40002'
+      PROXY_TIMEOUT: '300'
+      MAX_TOOL_DESC: '2000'
+      MAX_SCHEMA_DESC: '600'
+      CHARS_PER_TOKEN_ESTIMATE: '3.5'
+      MODEL_INPUT_TOKEN_SAFETY_GLM51: '190000'
+      MODEL_INPUT_TOKEN_SAFETY_DSV4P: '120000'
+      LOG_DIR: /app/logs
+    volumes:
+    - ./logs/proxy-40002:/app/logs
+    ports:
+    - 40002:40002
+    networks:
+    - cc-net
+    depends_on:
+    - glm5.1_uni41001
+    - dsv4p_uni42001
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:40002/health')"
+        || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+networks:
+  cc-net:
+    driver: bridge
+volumes:
+  cc_pgdata: null
