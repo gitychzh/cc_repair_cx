@@ -16,7 +16,7 @@ All infrastructure runs on this machine. Config files are at `/opt/cc-infra/`.
 
 ## Architecture
 
-- **proxy.py** (auth_to_api_40001/40002): Anthropic→OpenAI converter with tool truncation, proxy-level retry, and input token safety check. Runs on ports 40001/40002.
+- **proxy.py** (auth_to_api_40001/40002): Anthropic→OpenAI converter with tool truncation, proxy-level retry, input token safety check, GLM-5.1 thinking/reasoning mode conversion, and automatic context compression. Runs on ports 40001/40002.
 - **glm5.1_uni41001**: LiteLLM instance for GLM-5.1, 11 variants × 7 keys = 77 deployments, port 41001. Config: `/opt/cc-infra/litellm-glm51/config.yaml`
 - **dsv4p_uni42001**: LiteLLM instance for DSv4P, 11 variants × 7 keys = 77 deployments, port 42001. Config: `/opt/cc-infra/litellm-dsv4p/config.yaml`
 - **cc_postgres**: PostgreSQL for LiteLLM spend tracking, port 5432
@@ -62,6 +62,33 @@ curl -s -D- --max-time 15 -X POST "https://api-inference.modelscope.cn/v1/chat/c
 ```
 
 ## Critical Constraints
+
+- **ALL 11 model variants work correctly**: Every mixed-case variant (`zhipuAI/gLM-5.1`, `ZhipuAI/GlM-5.1`, etc.) returns 200 OK on ModelScope API. They all route to the same backend model `ZhipuAI/GLM-5.1`. **Never remove variants without testing each individually.**
+- **Each variant has INDEPENDENT 200 RPM quota**: Verified via `Modelscope-Ratelimit-Model-Requests-Remaining` headers. 11 variants × 7 keys × 200 RPM = 15,400 RPM/min theoretical (capped at 7 × 2000 = 14,000 total RPM). **Removing variants reduces total RPM capacity.**
+- **EXCLUDED variant `ZhipuAI/GLm-5.1`**: Only ~50 RPM quota, returns `choices: null`. Do NOT add this variant.
+- **rpm must remain = 1**: User requirement. LiteLLM's rpm parameter controls per-deployment rate limiting, not the actual ModelScope quota.
+- **429 errors are TPS/TPM throttle** (insufficient_quota), NOT real quota exhaustion. They reset per-minute. Use `cooldown_time: 20` and `RateLimitErrorAllowedFails: 3` to recover quickly.
+- **null-choices errors**: ModelScope occasionally returns `choices: null`. Proxy handles retry, but LiteLLM treats as InternalServerError and won't retry internally.
+- **GLM-5.1 max input**: 202,745 tokens. Safety limit set to 190,000 in proxy.
+- **GLM-5.1 has built-in thinking mode**: ModelScope returns `reasoning_content` in both streaming and non-streaming responses. Proxy converts this to Anthropic thinking blocks (`type: "thinking"`, `thinking_delta`). Do NOT discard thinking blocks or reasoning_content.
+- **Context compression**: When estimated tokens > 85% of safety threshold (161,500 for glm5.1), proxy automatically compresses older messages (truncate tool_result to 500 chars, keep last 20 messages intact). Only compresses when approaching danger zone.
+- **Max output tokens**: GLM-5.1 supports up to 16,384 output tokens on ModelScope (env: `MAX_OUTPUT_TOKENS_GLM51`). The proxy caps at this value, not hard-coded.
+- **All changes must be backed by log data or documentation** — never change parameters based on guessing. Test each model variant individually before adding/removing.
+
+## Proxy Configuration (Round 2)
+
+New environment variables added in Round 2:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_THINKING_MODE` | `true` | Enable GLM-5.1 reasoning_content → Anthropic thinking block conversion |
+| `THINKING_SIGNATURE` | placeholder string | Placeholder signature for thinking blocks (Anthropic format requires this field) |
+| `ENABLE_CONTEXT_COMPRESSION` | `true` | Enable automatic context compression for long conversations |
+| `COMPRESSION_THRESHOLD_FRACTION` | `0.85` | Fraction of safety threshold at which compression triggers |
+| `MAX_OUTPUT_TOKENS_GLM51` | `16384` | Max output tokens cap for GLM-5.1 (ModelScope's actual limit) |
+| `MAX_OUTPUT_TOKENS_DSV4P` | `8192` | Max output tokens cap for DSv4P |
+
+To rebuild proxy after changes: `cd /opt/cc-infra && docker compose build --no-cache auth_to_api_40001 auth_to_api_40002 && docker compose up -d auth_to_api_40001 auth_to_api_40002`
 
 - **ALL 11 model variants work correctly**: Every mixed-case variant (`zhipuAI/gLM-5.1`, `ZhipuAI/GlM-5.1`, etc.) returns 200 OK on ModelScope API. They all route to the same backend model `ZhipuAI/GLM-5.1`. **Never remove variants without testing each individually.**
 - **Each variant has INDEPENDENT 200 RPM quota**: Verified via `Modelscope-Ratelimit-Model-Requests-Remaining` headers. 11 variants × 7 keys × 200 RPM = 15,400 RPM/min theoretical (capped at 7 × 2000 = 14,000 total RPM). **Removing variants reduces total RPM capacity.**
